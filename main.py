@@ -61,7 +61,7 @@ BANNER = r"""
   ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
 """
 
-TAGLINE  = "  [ Full-Cycle CTF Automation Framework by Splo1t ]"
+TAGLINE  = "  [ Full-Cycle CTF Automation Framework ]"
 VERSION  = "  [ Version 1.0  |  Kali Linux Native   ]"
 
 DEFAULT_FLAG_PATTERNS = [
@@ -323,12 +323,27 @@ def _dispatch(category, target, port, attack_mode, pivot_module=None):
         print_status("info", "Module: Web Exploitation")
         print_status("info", "─" * 47)
 
-        # Nmap runs inside run_pwn_module; for web-only we do a lightweight
-        # host check first then hand off to web module with port list.
-        from module_pwn import _run_nmap_scans
-        open_ports, port_service_map, os_guess, hostname = _run_nmap_scans(
-            target, attack_mode, port, full_portscan=False
-        )
+        # Nmap runs inside module_pwn — import whichever helper name exists.
+        try:
+            from module_pwn import _run_nmap_scans as _nmap_fn
+        except ImportError:
+            try:
+                from module_pwn import _run_nmap_phases as _nmap_fn
+            except ImportError:
+                print_status("error", "module_pwn has no nmap helper (_run_nmap_scans / _run_nmap_phases). Aborting.")
+                return {}, CATEGORY_NAMES["1"], "", ""
+
+        # Call without full_portscan — web mode uses fast+deep scans only
+        import inspect as _inspect
+        _nmap_sig = _inspect.signature(_nmap_fn).parameters
+        if "full_portscan" in _nmap_sig:
+            open_ports, port_service_map, os_guess, hostname = _nmap_fn(
+                target, attack_mode, port, full_portscan=False
+            )
+        else:
+            open_ports, port_service_map, os_guess, hostname = _nmap_fn(
+                target, attack_mode, port
+            )
         findings = run_web_module(
             target=target,
             open_ports=open_ports,
