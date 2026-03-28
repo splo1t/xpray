@@ -1,0 +1,174 @@
+#!/bin/bash
+# =============================================================
+# xpray — install.sh
+# Full-Cycle CTF Automation Framework for Kali Linux
+# =============================================================
+
+TOOL_NAME="xpray"
+INSTALL_DIR="/opt/$TOOL_NAME"
+BIN_PATH="/usr/local/bin/$TOOL_NAME"
+
+PYTHON_DEPS="rich requests"
+
+FILES=(
+    "main.py"
+    "common.py"
+    "module_web.py"
+    "module_pwn.py"
+    "module_postexploit.py"
+    "module_reverse.py"
+    "module_forensics.py"
+    "module_crypto.py"
+    "module_osint.py"
+    "module_pivot.py"
+    "module_report.py"
+    "README.md"
+)
+
+# -------------------------------------------------------------
+# Colours
+# -------------------------------------------------------------
+GREEN="\033[1;32m"
+CYAN="\033[1;36m"
+RED="\033[1;31m"
+YELLOW="\033[1;33m"
+RESET="\033[0m"
+
+ok()   { echo -e "${GREEN}[+]${RESET} $*"; }
+info() { echo -e "${CYAN}[*]${RESET} $*"; }
+warn() { echo -e "${YELLOW}[!]${RESET} $*"; }
+err()  { echo -e "${RED}[ERROR]${RESET} $*"; exit 1; }
+
+# -------------------------------------------------------------
+# STEP 1 — Must be run as root
+# -------------------------------------------------------------
+if [ "$EUID" -ne 0 ]; then
+    err "Please run as root:  sudo bash install.sh"
+fi
+
+echo ""
+echo -e "${CYAN}"
+cat << 'BANNER'
+  ██╗  ██╗██████╗ ██████╗  █████╗ ██╗   ██╗
+  ╚██╗██╔╝██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝
+   ╚███╔╝ ██████╔╝██████╔╝███████║ ╚████╔╝
+   ██╔██╗ ██╔═══╝ ██╔══██╗██╔══██║  ╚██╔╝
+  ██╔╝ ██╗██║     ██║  ██║██║  ██║   ██║
+  ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
+  [ Full-Cycle CTF Automation Framework ]
+  [ Installer v1.0                      ]
+BANNER
+echo -e "${RESET}"
+
+# -------------------------------------------------------------
+# STEP 2 — Check Python 3 is available
+# -------------------------------------------------------------
+info "Checking Python 3..."
+if ! command -v python3 &>/dev/null; then
+    err "python3 not found. Install it with: apt install python3"
+fi
+PYTHON_VERSION=$(python3 --version 2>&1)
+ok "Found: $PYTHON_VERSION"
+
+# -------------------------------------------------------------
+# STEP 3 — Install Python dependencies
+# -------------------------------------------------------------
+info "Installing Python dependencies: $PYTHON_DEPS"
+if ! command -v pip3 &>/dev/null; then
+    err "pip3 not found. Install it with: apt install python3-pip"
+fi
+
+pip3 install $PYTHON_DEPS --break-system-packages -q
+if [ $? -ne 0 ]; then
+    err "pip3 failed to install dependencies. Check your internet connection and retry."
+fi
+ok "Python dependencies installed."
+
+# -------------------------------------------------------------
+# STEP 4 — Verify source files exist before copying
+# -------------------------------------------------------------
+info "Verifying source files..."
+MISSING_FILES=()
+for f in "${FILES[@]}"; do
+    if [ ! -f "$f" ]; then
+        # README.md is optional — warn but don't abort
+        if [ "$f" = "README.md" ]; then
+            warn "README.md not found — skipping."
+        else
+            MISSING_FILES+=("$f")
+        fi
+    fi
+done
+
+if [ ${#MISSING_FILES[@]} -gt 0 ]; then
+    err "Missing required files: ${MISSING_FILES[*]}"$'\n'"       Make sure you run install.sh from the xpray project root."
+fi
+ok "All required source files found."
+
+# -------------------------------------------------------------
+# STEP 5 — Create install directory and copy files
+# -------------------------------------------------------------
+info "Creating install directory: $INSTALL_DIR"
+mkdir -p "$INSTALL_DIR"
+if [ $? -ne 0 ]; then
+    err "Failed to create $INSTALL_DIR"
+fi
+
+info "Copying files to $INSTALL_DIR..."
+for f in "${FILES[@]}"; do
+    if [ -f "$f" ]; then
+        cp "$f" "$INSTALL_DIR/"
+        if [ $? -ne 0 ]; then
+            err "Failed to copy $f to $INSTALL_DIR/"
+        fi
+    fi
+done
+ok "Files copied to $INSTALL_DIR"
+
+# -------------------------------------------------------------
+# STEP 6 — Set correct permissions on installed files
+# -------------------------------------------------------------
+info "Setting file permissions..."
+chmod 755 "$INSTALL_DIR"
+chmod 644 "$INSTALL_DIR"/*.py 2>/dev/null
+if [ -f "$INSTALL_DIR/README.md" ]; then
+    chmod 644 "$INSTALL_DIR/README.md"
+fi
+ok "Permissions set."
+
+# -------------------------------------------------------------
+# STEP 7 — Create the launcher script at /usr/local/bin/xpray
+# -------------------------------------------------------------
+info "Creating launcher at $BIN_PATH..."
+cat > "$BIN_PATH" << EOF
+#!/bin/bash
+# xpray launcher — auto-generated by install.sh
+exec python3 /opt/${TOOL_NAME}/main.py "\$@"
+EOF
+
+chmod +x "$BIN_PATH"
+if [ $? -ne 0 ]; then
+    err "Failed to set executable permission on $BIN_PATH"
+fi
+ok "Launcher created: $BIN_PATH"
+
+# -------------------------------------------------------------
+# STEP 8 — Verify installation
+# -------------------------------------------------------------
+info "Verifying installation..."
+WHICH_OUT=$(which "$TOOL_NAME" 2>/dev/null)
+
+if [ "$WHICH_OUT" = "$BIN_PATH" ]; then
+    echo ""
+    ok "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    ok "Installation successful."
+    ok "Run the tool from anywhere by typing:  $TOOL_NAME"
+    ok "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+else
+    warn "Installation may have an issue."
+    warn "Expected launcher at: $BIN_PATH"
+    warn "which $TOOL_NAME returned: $WHICH_OUT"
+    warn "Try opening a new terminal and running: $TOOL_NAME"
+    echo ""
+fi
