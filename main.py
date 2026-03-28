@@ -325,8 +325,8 @@ def _dispatch(category, target, port, attack_mode, pivot_module=None):
 
         # Nmap runs inside run_pwn_module; for web-only we do a lightweight
         # host check first then hand off to web module with port list.
-        from module_pwn import _run_nmap_phases
-        open_ports, port_service_map, os_guess, hostname = _run_nmap_phases(
+        from module_pwn import _run_nmap_scans
+        open_ports, port_service_map, os_guess, hostname = _run_nmap_scans(
             target, attack_mode, port, full_portscan=False
         )
         findings = run_web_module(
